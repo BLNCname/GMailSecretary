@@ -20,9 +20,22 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram import BaseMiddleware
 from dotenv import load_dotenv
-
+from aiogram.types import BotCommand
 # Load environment variables
 load_dotenv()
+
+async def set_commands(bot: Bot):
+    commands = [
+        BotCommand(command="/start", description="Начать работу с ботом"),
+        BotCommand(command="/authorize", description="Авторизоваться в Gmail"),
+        BotCommand(command="/date_emails", description="Получить письма по дате"),
+        BotCommand(command="/sender_emails", description="Письма от отправителя"),
+        BotCommand(command="/summarize", description="Суммаризировать письмо"),
+        BotCommand(command="/importance", description="Письма по важности"),
+        BotCommand(command="/template", description="Написать шаблон ответа")
+    ]
+    await bot.set_my_commands(commands)
+
 
 class RegistrationMiddleware(BaseMiddleware):
     def __init__(self):
@@ -166,6 +179,9 @@ async def process_auth_url(message: Message, state: FSMContext):
     await message.answer("Теперь вы можете использовать все функции бота.", reply_markup=get_main_keyboard())
     await state.clear()
 
+
+
+
 # Date range emails
 @registration_router.message(F.text == "📅 Получить письма по дате")
 async def request_date_range(message: Message, state: FSMContext):
@@ -208,12 +224,30 @@ async def process_end_date(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("Неверный формат даты. Пожалуйста, введите дату в формате ДД.ММ.ГГГГ:")
 
+@router.message(Command("date_emails"))
+async def cmd_date_emails(message: Message, state: FSMContext):
+    await request_date_range(message, state)
+
+@router.message(Command("sender_emails"))
+async def cmd_sender_emails(message: Message, state: FSMContext):
+    await request_sender(message, state)
+
+@router.message(Command("summarize"))
+async def cmd_summarize(message: Message, state: FSMContext):
+    await request_email_to_summarize(message, state)
+
+@router.message(Command("importance"))
+async def cmd_importance(message: Message, state: FSMContext):
+    await request_importance_level(message, state)
+
+@router.message(Command("template"))
+async def cmd_template(message: Message, state: FSMContext):
+    await request_email_for_template(message, state)
+
+
 # Sender emails
 @registration_router.message(F.text == "👤 Письма от отправителя")
 async def request_sender(message: Message, state: FSMContext):
-    if message.from_user.id not in user_auth:
-        await message.answer("Пожалуйста, сначала авторизуйтесь.")
-        return
     
     await message.answer("Введите email отправителя:")
     await state.set_state(SenderState.waiting_for_sender)
@@ -240,10 +274,6 @@ async def process_sender(message: Message, state: FSMContext):
 # Email summary
 @registration_router.message(F.text == "📝 Суммаризировать письмо")
 async def request_email_to_summarize(message: Message, state: FSMContext):
-    if message.from_user.id not in user_auth:
-        await message.answer("Пожалуйста, сначала авторизуйтесь.")
-        return
-    
     # Here you would normally fetch emails from your email service
     # For this example, we'll use mock data
     mock_emails = [
@@ -276,10 +306,6 @@ async def summarize_email(callback: types.CallbackQuery, state: FSMContext):
 # Importance filter
 @registration_router.message(F.text == "❗ Письма по важности")
 async def request_importance_level(message: Message, state: FSMContext):
-    if message.from_user.id not in user_auth:
-        await message.answer("Пожалуйста, сначала авторизуйтесь.")
-        return
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔴 Важное", callback_data="importance_high")],
         [InlineKeyboardButton(text="🟡 Среднее", callback_data="importance_medium")],
@@ -305,12 +331,11 @@ async def show_emails_by_importance(callback: types.CallbackQuery, state: FSMCon
     await state.set_state(EmailSelectionState.waiting_for_email_selection)
     await callback.answer()
 
+
+
 # Response template
 @registration_router.message(F.text == "✉️ Написать шаблон ответа")
 async def request_email_for_template(message: Message, state: FSMContext):
-    if message.from_user.id not in user_auth:
-        await message.answer("Пожалуйста, сначала авторизуйтесь.")
-        return
     
     # Here you would normally fetch emails from your email service
     # For this example, we'll use mock data
@@ -393,7 +418,17 @@ async def handle_email_pagination(callback: types.CallbackQuery):
     await callback.message.edit_reply_markup(reply_markup=create_email_list_keyboard(emails, page))
     await callback.answer()
 
+# @router.message()
+# async def unknown_message(message: Message):
+#     await message.answer("Не понимаю вашего сообщения. Пожалуйста, используйте доступные команды.")
+
 async def main():
+    await dp.start_polling(bot)
+
+async def main():
+    # Устанавливаем команды бота
+    await set_commands(bot)
+    # Запускаем бота
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
