@@ -1,0 +1,26 @@
+[project]
+name = "gmailsecretary"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Шишкин Артём Вадимович",email = "arvashishkin@edu.hse.ru"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram (>=3.19.0,<4.0.0)",
+    "google-api-core (>=2.24.2,<3.0.0)",
+    "google-api-python-client (>=2.165.0,<3.0.0)",
+    "google-auth (>=2.38.0,<3.0.0)",
+    "google-auth-httplib2 (>=0.2.0,<0.3.0)",
+    "google-auth-oauthlib (>=1.2.1,<2.0.0)",
+    "python-dotenv (>=1.0.1,<2.0.0)",
+    "requests (>=2.32.3,<3.0.0)",
+    "requests-oauthlib (>=2.0.0,<3.0.0)"
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
