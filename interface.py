@@ -127,7 +127,7 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 # Handlers
-@router.message(Command("start"))
+@router.message(F.text.startswith("/start"))
 async def cmd_start(message: Message, state: FSMContext):
     welcome_text = (
         "Здравствуйте! Это бот-секретарь. В этом боте вы можете:\n"
@@ -140,7 +140,7 @@ async def cmd_start(message: Message, state: FSMContext):
     
     await message.answer(welcome_text)
     
-@router.message(Command("authorize"))
+@router.message(F.text.startswith("/authorize"))
 async def process_register(message: Message, state: FSMContext):
     auth_manager = GmailAuth()
     creds = auth_manager.load_creds(message.chat.id)
@@ -180,10 +180,8 @@ async def process_auth_url(message: Message, state: FSMContext):
     await state.clear()
 
 
-
-
 # Date range emails
-@registration_router.message(F.text == "📅 Получить письма по дате")
+@registration_router.message(F.text.startswith("/date_emails"))
 async def request_date_range(message: Message, state: FSMContext):
     await message.answer("Введите начальную дату в формате ДД.ММ.ГГГГ:")
     await state.set_state(DateRangeState.waiting_for_start_date)
@@ -224,29 +222,8 @@ async def process_end_date(message: Message, state: FSMContext):
     except ValueError:
         await message.answer("Неверный формат даты. Пожалуйста, введите дату в формате ДД.ММ.ГГГГ:")
 
-@router.message(Command("date_emails"))
-async def cmd_date_emails(message: Message, state: FSMContext):
-    await request_date_range(message, state)
-
-@router.message(Command("sender_emails"))
-async def cmd_sender_emails(message: Message, state: FSMContext):
-    await request_sender(message, state)
-
-@router.message(Command("summarize"))
-async def cmd_summarize(message: Message, state: FSMContext):
-    await request_email_to_summarize(message, state)
-
-@router.message(Command("importance"))
-async def cmd_importance(message: Message, state: FSMContext):
-    await request_importance_level(message, state)
-
-@router.message(Command("template"))
-async def cmd_template(message: Message, state: FSMContext):
-    await request_email_for_template(message, state)
-
-
 # Sender emails
-@registration_router.message(F.text == "👤 Письма от отправителя")
+@registration_router.message(F.text.startswith("/sender_emails"))
 async def request_sender(message: Message, state: FSMContext):
     
     await message.answer("Введите email отправителя:")
@@ -265,6 +242,7 @@ async def process_sender(message: Message, state: FSMContext):
     
     if not mock_emails:
         await message.answer(f"Писем от отправителя {sender_email} не найдено. Попробуйте ввести другой email.")
+        await state.clear()
         return
     
     user_emails[message.from_user.id] = mock_emails
@@ -272,7 +250,7 @@ async def process_sender(message: Message, state: FSMContext):
     await state.set_state(EmailSelectionState.waiting_for_email_selection)
 
 # Email summary
-@registration_router.message(F.text == "📝 Суммаризировать письмо")
+@registration_router.message(F.text.startswith("/summarise"))
 async def request_email_to_summarize(message: Message, state: FSMContext):
     # Here you would normally fetch emails from your email service
     # For this example, we'll use mock data
@@ -285,7 +263,7 @@ async def request_email_to_summarize(message: Message, state: FSMContext):
     await message.answer("Выберите письмо для суммаризации:", reply_markup=create_email_list_keyboard(mock_emails))
     await state.set_state(SummaryState.waiting_for_email_to_summarize)
 
-@registration_router.callback_query(SummaryState.waiting_for_email_to_summarize, F.data.startswith("select_email_"))
+@registration_router.callback_query(SummaryState.waiting_for_email_to_summarize)
 async def summarize_email(callback: types.CallbackQuery, state: FSMContext):
     email_index = int(callback.data.split("_")[-1])
     emails = user_emails.get(callback.from_user.id, [])
@@ -304,7 +282,7 @@ async def summarize_email(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # Importance filter
-@registration_router.message(F.text == "❗ Письма по важности")
+@registration_router.message(F.text.startswith("/importance"))
 async def request_importance_level(message: Message, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔴 Важное", callback_data="importance_high")],
@@ -315,7 +293,7 @@ async def request_importance_level(message: Message, state: FSMContext):
     await message.answer("Выберите уровень важности:", reply_markup=keyboard)
     await state.set_state(ImportanceState.waiting_for_importance_level)
 
-@registration_router.callback_query(ImportanceState.waiting_for_importance_level, F.data.startswith("importance_"))
+@registration_router.callback_query(ImportanceState.waiting_for_importance_level)
 async def show_emails_by_importance(callback: types.CallbackQuery, state: FSMContext):
     importance = callback.data.split("_")[-1]
     
@@ -334,7 +312,7 @@ async def show_emails_by_importance(callback: types.CallbackQuery, state: FSMCon
 
 
 # Response template
-@registration_router.message(F.text == "✉️ Написать шаблон ответа")
+@registration_router.message(F.text.startswith("/template"))
 async def request_email_for_template(message: Message, state: FSMContext):
     
     # Here you would normally fetch emails from your email service
@@ -348,7 +326,7 @@ async def request_email_for_template(message: Message, state: FSMContext):
     await message.answer("Выберите письмо для создания шаблона ответа:", reply_markup=create_email_list_keyboard(mock_emails))
     await state.set_state(TemplateState.waiting_for_email_to_template)
 
-@registration_router.callback_query(TemplateState.waiting_for_email_to_template, F.data.startswith("select_email_"))
+@registration_router.callback_query(TemplateState.waiting_for_email_to_template)
 async def create_response_template(callback: types.CallbackQuery, state: FSMContext):
     email_index = int(callback.data.split("_")[-1])
     emails = user_emails.get(callback.from_user.id, [])
@@ -383,7 +361,7 @@ async def save_response_template(message: Message, state: FSMContext):
     await state.clear()
 
 # Email selection handler (shared for multiple states)
-@registration_router.callback_query(EmailSelectionState.waiting_for_email_selection, F.data.startswith("select_email_"))
+@registration_router.callback_query(EmailSelectionState.waiting_for_email_selection)
 async def show_selected_email(callback: types.CallbackQuery, state: FSMContext):
     email_index = int(callback.data.split("_")[-1])
     emails = user_emails.get(callback.from_user.id, [])
@@ -398,7 +376,7 @@ async def show_selected_email(callback: types.CallbackQuery, state: FSMContext):
         f"От: {selected_email['sender']}\n"
         f"Дата: {selected_email['date'].strftime('%d.%m.%Y %H:%M')}\n"
         f"Тема: {selected_email['subject']}\n\n"
-        f"Содержание:\n{selected_email['content']}"
+        f"Содержание:\n{selected_email['body']}"
     )
     
     await callback.message.answer(email_text, reply_markup=get_main_keyboard())
@@ -406,7 +384,7 @@ async def show_selected_email(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # Pagination handler
-@registration_router.callback_query(F.data.startswith("email_page_"))
+@registration_router.callback_query(F.text.startswith("email_page_"))
 async def handle_email_pagination(callback: types.CallbackQuery):
     page = int(callback.data.split("_")[-1])
     emails = user_emails.get(callback.from_user.id, [])
@@ -418,9 +396,9 @@ async def handle_email_pagination(callback: types.CallbackQuery):
     await callback.message.edit_reply_markup(reply_markup=create_email_list_keyboard(emails, page))
     await callback.answer()
 
-# @router.message()
-# async def unknown_message(message: Message):
-#     await message.answer("Не понимаю вашего сообщения. Пожалуйста, используйте доступные команды.")
+@registration_router.message(F.text)
+async def unknown_message(message: Message):
+    await message.answer("Не понимаю вашего сообщения. Пожалуйста, используйте доступные команды.")
 
 async def main():
     await dp.start_polling(bot)
