@@ -1,0 +1,9 @@
+aiogram==3.0.0b7
+
+python-dotenv==1.0.0
+
+beautifulsoup4==4.12.2
+
+requests==2.31.0
+
+python-dateutil==2.8.2
