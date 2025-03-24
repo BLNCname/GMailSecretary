@@ -20,14 +20,19 @@ class GmailAuth:
     3. fetch_token(auth_code)
     """
     _instance = None
+    active_flows = {}  # Переносим active_flows на уровень класса
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._instance.active_flows = {}  # Инициализация для нового экземпляра
         return cls._instance
 
     def __init__(self):
-        self.active_flows = {}
+        # Теперь __init__ не перезаписывает active_flows для существующего экземпляра
+        if not hasattr(self, 'active_flows'):
+            self.active_flows = {}
+        print(self.active_flows)
 
     def _save_token_to_db(self, user_id: str, token: str):
         with sqlite3.connect(DB_PATH) as conn:
@@ -42,8 +47,11 @@ class GmailAuth:
         with sqlite3.connect(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT token FROM auth_tokens WHERE user_id = ?", (user_id,))
-            result = json.loads(cursor.fetchone()[0])
-            return result if result else None
+            result = cursor.fetchone()
+            if not result:
+                return None
+            result = json.loads(result[0])
+            return result
 
     @staticmethod
     def get_creds_from_token(token: str) -> Credentials:
