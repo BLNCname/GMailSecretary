@@ -1,2 +1,5 @@
 venv
 configs/client_secrets.json
+sqlite/tg_gmail_bot.db
+src/__pycache__/
+src/gmail/__pycache__/

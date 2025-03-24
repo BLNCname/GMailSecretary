@@ -17,8 +17,6 @@ httplib2==0.22.0
 idna==3.10
 kiwisolver==1.4.5
 matplotlib==3.8.4
-mysql-connector-python==8.4.0
-mysqlclient==2.2.4
 numpy==1.26.4
 oauthlib==3.2.2
 packaging==24.0
@@ -26,6 +24,7 @@ pandas==2.2.1
 pillow==10.2.0
 proto-plus==1.26.1
 protobuf==6.30.1
+/Users/Yaroslav/GMailSecretary/src/gmail/__pycache__
 pyaes==1.6.1
 pyasn1==0.6.1
 pyasn1_modules==0.4.1
