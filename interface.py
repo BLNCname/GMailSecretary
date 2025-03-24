@@ -1,6 +1,7 @@
 from src.gmail.auth import GmailAuth
 import os
 import re
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional, Callable, Any, Awaitable
 
@@ -21,6 +22,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram import BaseMiddleware
 from dotenv import load_dotenv
 from aiogram.types import BotCommand
+from ai import EmailBridge
 # Load environment variables
 load_dotenv()
 
@@ -50,7 +52,7 @@ class RegistrationMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 # Initialize bot and dispatcher
-bot = Bot(token=('7646882683:AAF2DvdkSx7Fgn8gndjZWFpw8x8VUDnWFhk'))
+bot = Bot(token=('8144132206:AAFga5-A9ksXPAkrhcouIVmVGCRSiSfdk7g'))
 dp = Dispatcher()
 registration_router = Router()
 router = Router()
@@ -59,9 +61,9 @@ dp.include_router(registration_router)
 
 registration_router.message.middleware(RegistrationMiddleware())
 
-# Mock data storage for emails (in a real app, you'd use a database)
-user_emails = {}
-user_auth = {}
+bridge = EmailBridge()
+bridge.setup()
+print("set")
 
 # States
 class AuthState(StatesGroup):
@@ -116,16 +118,6 @@ def create_email_list_keyboard(emails: List[Dict], page: int = 0, page_size: int
     
     return builder.as_markup()
 
-def get_main_keyboard() -> ReplyKeyboardMarkup:
-    buttons = [
-        [KeyboardButton(text="📅 Получить письма по дате")],
-        [KeyboardButton(text="👤 Письма от отправителя")],
-        [KeyboardButton(text="📝 Суммаризировать письмо")],
-        [KeyboardButton(text="❗ Письма по важности")],
-        [KeyboardButton(text="✉️ Написать шаблон ответа")]
-    ]
-    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
-
 # Handlers
 @router.message(F.text.startswith("/start"))
 async def cmd_start(message: Message, state: FSMContext):
@@ -143,11 +135,11 @@ async def cmd_start(message: Message, state: FSMContext):
 @router.message(F.text.startswith("/authorize"))
 async def process_register(message: Message, state: FSMContext):
     auth_manager = GmailAuth()
-    creds = auth_manager.load_creds(message.chat.id)
+    creds = auth_manager.load_creds(str(message.chat.id))
     if creds:
         await message.answer("Вы уже авторизованы")
         return
-    auth_url = auth_manager.get_auth_url(message.chat.id)
+    auth_url = auth_manager.get_auth_url(str(message.chat.id))
     auth_button = InlineKeyboardButton(
         text="🔑 Авторизоваться",
         url=auth_url
@@ -172,11 +164,10 @@ async def process_auth_url(message: Message, state: FSMContext):
     # Here you would normally process the auth URL and verify it
     # For this example, we'll just assume it's valid
     auth_manager = GmailAuth()
-    print(message.chat.id)
-    auth_manager.fetch_token(message.chat.id, message.text)
+    auth_manager.fetch_token(str(message.chat.id), message.text)
     
     await message.answer("✅ Авторизация прошла успешно!")
-    await message.answer("Теперь вы можете использовать все функции бота.", reply_markup=get_main_keyboard())
+    await message.answer("Теперь вы можете использовать все функции бота.")
     await state.clear()
 
 
@@ -232,21 +223,13 @@ async def request_sender(message: Message, state: FSMContext):
 @registration_router.message(SenderState.waiting_for_sender)
 async def process_sender(message: Message, state: FSMContext):
     sender_email = message.text.strip()
-    
-    # Here you would normally fetch emails from your email service
-    # For this example, we'll use mock data
-    mock_emails = [
-        {"id": i, "subject": f"Письмо от {sender_email} {i}", "sender": sender_email, "date": datetime.now(), "content": f"Содержание письма {i}"}
-        for i in range(1, 6)
-    ] if sender_email == "known@example.com" else []
-    
-    if not mock_emails:
+    emails = bridge.get_emails_by_criteria("sender", sender_email)
+    print(emails)
+    if not emails:
         await message.answer(f"Писем от отправителя {sender_email} не найдено. Попробуйте ввести другой email.")
         await state.clear()
         return
-    
-    user_emails[message.from_user.id] = mock_emails
-    await message.answer("Выберите письмо для просмотра:", reply_markup=create_email_list_keyboard(mock_emails))
+    await message.answer("Выберите письмо для просмотра:", reply_markup=create_email_list_keyboard(emails))
     await state.set_state(EmailSelectionState.waiting_for_email_selection)
 
 # Email summary
@@ -401,14 +384,8 @@ async def unknown_message(message: Message):
     await message.answer("Не понимаю вашего сообщения. Пожалуйста, используйте доступные команды.")
 
 async def main():
-    await dp.start_polling(bot)
-
-async def main():
-    # Устанавливаем команды бота
     await set_commands(bot)
-    # Запускаем бота
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

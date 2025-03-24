@@ -12,35 +12,29 @@ class EmailVectorDatabase:
         self.collection = self.client.get_or_create_collection(collection_name)
         self.email_data = []
         
-    def add_email(self, email: Dict, embedding: List[float]):
+    def add_email(self, email: Dict):
         email_id = str(len(self.email_data))
         self.email_data.append(email)
-        
+        if not email["body"]:
+            return
         self.collection.add(
             ids=[email_id],
-            embeddings=[embedding],
             metadatas=[{
                 "from": email["from"],
                 "to": email["to"],
                 "date": email["date"],
                 "subject": email["subject"]
-            }]
+            }],
+            documents=[email["body"]]
         )
         
-    def search_by_embedding(self, query_embedding: List[float], k: int = 5) -> List[Dict]:
+    def search_by_embedding(self, query_params: Dict, k: int = 5) -> chromadb.QueryResult:
         results = self.collection.query(
-            query_embeddings=[query_embedding],
+            query_texts=[""],
+            where=query_params,
             n_results=k
         )
-        
-        matched_emails = []
-        for i, idx in enumerate(results["ids"][0]):
-            email_idx = int(idx)
-            email = self.email_data[email_idx].copy()
-            email['number'] = email_idx + 1
-            matched_emails.append(email)
-            
-        return matched_emails
+        return results
 
 class EmailBridge:
     def __init__(self, embedding_dimension: int = 768):
@@ -53,11 +47,11 @@ class EmailBridge:
         self.email_loader.start_monitoring()
         initial_emails = self.email_loader.init_emails(50, 50)
         for email in initial_emails:
+            print(email)
             self._handle_new_email(email)
     
     def _handle_new_email(self, email: Dict):
-        embedding = np.random.rand(self.embedding_dimension).tolist()
-        self.vector_db.add_email(email, embedding)
+        self.vector_db.add_email(email)
     
     def _parse_email_date(self, date_str: str) -> Optional[str]:
         """Преобразует строку даты в формат YYYY-MM-DD."""
@@ -71,23 +65,13 @@ class EmailBridge:
             return None
         except Exception:
             return None
-    
+
     def get_emails_by_criteria(self, criteria_type: str, criteria_value: str, top_k: int = 5) -> List[Dict]:
-        query_embedding = np.random.rand(self.embedding_dimension).tolist()
-        all_results = self.vector_db.search_by_embedding(query_embedding, k=len(self.vector_db.email_data))
-        filtered_results = []
-        for result in all_results:
-            if criteria_type == "date":
-                email_date = self._parse_email_date(result['date'])
-                if email_date and email_date == criteria_value:
-                    filtered_results.append(result)
-            elif criteria_type == "sender" and criteria_value.lower() in result['from'].lower():
-                filtered_results.append(result)
-        for i, result in enumerate(filtered_results):
-            result['number'] = i + 1
-            
-        return filtered_results
-    
+        meta_filter = {criteria_type: {"$eq": criteria_value}}
+        emails = self.vector_db.search_by_embedding(meta_filter, top_k)
+        print(emails)
+        return emails
+
     def get_email_summaries(self, criteria_type: str, criteria_value: str) -> List[Dict]:
         """Получает список писем с номерами и темами для отображения."""
         emails = self.get_emails_by_criteria(criteria_type, criteria_value)
